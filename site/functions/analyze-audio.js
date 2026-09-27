@@ -1,20 +1,44 @@
 exports.handler = async (event) => {
-if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
-try {
-const { audio, mimeType } = JSON.parse(event.body || '{}');
-if (!audio) {
-return { statusCode: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: 'لا يوجد صوت للتحليل.' };
-}
-const prompt = 'أنت مساعد ذكي للصُّم. استمع لهذا الصوت المحيط وحدّد باللغة العربية نوع الصوت (مثل: موسيقى، بكاء طفل، بكاء شخص بالغ، أذان، انفجار، إنذار، جرس باب، سيارة، حيوان، صمت... أو ما يشبهها) واذكر تنبيه خطر واضح إن كان الصوت يدل على خطر أو طارئ. كن مختصراً وواضحاً.';
-const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + process.env.GEMINI_API_KEY, {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType || 'audio/webm', data: audio } }] }], generationConfig: { maxOutputTokens: 2048 } })
-});
-const data = await resp.json();
-const out = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || 'تعذّر التحليل.';
-return { statusCode: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: out };
-} catch (e) {
-return { statusCode: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: 'خطأ: ' + e.message };
-}
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "text/plain; charset=utf-8"
+  };
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
+
+  try {
+    const body = JSON.parse(event.body || "{}");
+    const audio = body.audio || "";
+    const mimeType = body.mimeType || "audio/webm";
+
+    const prompt = `أنت خبير في تحليل الأصوات المحيطة. استمع للصوت المرفق وحدّد نوعه بدقة. صنّف الصوت ضمن الفئات التالية (أو ما يشبهها):\n\n- أصوات دينية (أذان، قرآن)\n- أصوات بشرية (كلام، بكاء طفل/رضيع، بكاء شخص بالغ، ضحك، صراخ)\n- موسيقى\n- أصوات خطر/طوارئ (إنذار، انفجار، إطلاق نار، صراخ استغاثة)\n- مركبات (سيارة، بوق، دراجة نارية)\n- طبيعة (مطر، رعد، رياح، بحر)\n- حيوانات\n- أصوات منزلية (جرس الباب، هاتف، أجهزة)\n- صمت\n\nأعطِ:\n**١) نوع الصوت:** (الفئة الأقرب)\n**٢) الوصف:** (شرح مختصر)\n**٣) تنبيه الأمان:** (هل يوجد خطر يستدعي الانتباه؟)`;
+
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: audio } }
+            ]
+          }],
+          generationConfig: { maxOutputTokens: 2048 }
+        })
+      }
+    );
+
+    const data = await response.json();
+    const result = data?.candidates?.[0]?.content?.parts?.[0]?.text || "تعذّر التحليل.";
+
+    return { statusCode: 200, headers, body: result };
+  } catch (err) {
+    return { statusCode: 200, headers, body: "تعذّر التحليل." };
+  }
 };
