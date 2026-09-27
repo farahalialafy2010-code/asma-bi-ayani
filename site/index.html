@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>المساعد الذكي للصُّم</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: Tahoma, Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 16px; min-height: 100vh; }
+.wrap { max-width: 640px; margin: 0 auto; }
+h1 { font-size: 22px; color: #38bdf8; text-align: center; margin: 8px 0 4px; }
+p.sub { text-align: center; color: #94a3b8; font-size: 14px; margin: 0 0 20px; }
+.btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+button { font-family: inherit; font-size: 16px; font-weight: bold; border: none; border-radius: 14px; padding: 13px 20px; cursor: pointer; }
+#start { background: #22c55e; color: #062e16; }
+#stop { background: #ef4444; color: #fff; }
+#clear { background: #334155; color: #e2e8f0; }
+#analyze { background: #a855f7; color: #fff; }
+#record { background: #f59e0b; color: #1a1a1a; }
+button:disabled { opacity: 0.45; }
+.status { text-align: center; font-size: 14px; margin-bottom: 14px; color: #fbbf24; min-height: 20px; }
+.label { font-size: 13px; color: #94a3b8; margin: 14px 0 6px; }
+.box { background: #1e293b; border-radius: 16px; padding: 18px; font-size: 19px; line-height: 2; min-height: 120px; white-space: pre-wrap; word-wrap: break-word; }
+.analysis { border: 1px solid #a855f7; }
+.sound { border: 1px solid #f59e0b; }
+.interim { color: #64748b; }
+.lang-row { text-align: center; margin-bottom: 16px; }
+select { font-family: inherit; font-size: 15px; padding: 8px 12px; border-radius: 10px; border: none; background: #1e293b; color: #e2e8f0; }
+.live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; margin-left: 6px; animation: blink 1s infinite; vertical-align: middle; }
+@keyframes blink { 50% { opacity: 0.2; } }
+.note { font-size: 12px; color: #64748b; text-align: center; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>المساعد الذكي للصُّم</h1>
+<p class="sub">الالتقاط الحي للكلام وتحويله إلى نص لحظة بلحظة</p>
+<div class="lang-row">
+<label for="lang">اللهجة: </label>
+<select id="lang">
+<option value="ar-SA">السعودية</option>
+<option value="ar-AE">الإمارات</option>
+<option value="ar-BH">البحرين</option>
+<option value="ar-OM">سلطنة عُمان</option>
+<option value="ar-QA">قطر</option>
+<option value="ar-KW">الكويت</option>
+<option value="ar-IQ">العراق</option>
+<option value="ar-YE">اليمن</option>
+<option value="ar-EG">مصر</option>
+<option value="ar-SY">سوريا</option>
+<option value="ar-JO">الأردن</option>
+<option value="ar-LB">لبنان</option>
+<option value="ar-PS">فلسطين</option>
+<option value="ar-LY">ليبيا</option>
+<option value="ar-TN">تونس</option>
+<option value="ar-DZ">الجزائر</option>
+<option value="ar-MA">المغرب</option>
+<option value="ar-MR">موريتانيا</option>
+<option value="ar-SD">السودان</option>
+<option value="ar-SO">الصومال</option>
+<option value="ar-KM">جزر القمر</option>
+<option value="en-US">English</option>
+</select>
+</div>
+<div class="btns">
+<button id="start">▶ ابدأ الاستماع</button>
+<button id="stop" disabled>■ إيقاف</button>
+<button id="clear">مسح</button>
+<button id="analyze">تحليل ذكي</button>
+<button id="record"> تحليل الصوت المحيط</button>
+</div>
+<div class="status" id="status"></div>
+<div class="label">النص المسموع:</div>
+<div class="box" id="output"><span class="interim">النص سيظهر هنا فور بدء الكلام…</span></div>
+<div class="label">التحليل الذكي (المشاعر + تنبيه الخطر):</div>
+<div class="box analysis" id="analysis"><span class="interim">اضغط "تحليل ذكي" بعد الكلام…</span></div>
+<div class="label">تحليل الصوت المحيط (موسيقى/انفجار/إنذار + الخطر):</div>
+<div class="box sound" id="soundResult"><span class="interim">اضغط "تحليل الصوت المحيط" لتسجيل ٥ ثواني وتحليل الأصوات حولك…</span></div>
+<p class="note">اسمح بإذن الميكروفون. يعمل بأفضل شكل على Chrome.</p>
+</div>
+<script>
+const startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),clearBtn=document.getElementById('clear'),analyzeBtn=document.getElementById('analyze'),recordBtn=document.getElementById('record'),output=document.getElementById('output'),analysisBox=document.getElementById('analysis'),soundBox=document.getElementById('soundResult'),statusEl=document.getElementById('status'),langSel=document.getElementById('lang');
+const WEBHOOK_URL='/.netlify/functions/analyze-speech';
+const AUDIO_URL='/.netlify/functions/analyze-audio';
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null,finalText='',listening=false;
+if(!SR){statusEl.textContent='المتصفح لا يدعم الالتقاط الحي. استخدم Chrome.';startBtn.disabled=true;}
+function buildRecognition(){const r=new SR();r.lang=langSel.value;r.continuous=true;r.interimResults=true;
+r.onstart=()=>{listening=true;statusEl.innerHTML='يستمع الآن <span class="live-dot"></span>';startBtn.disabled=true;stopBtn.disabled=false;};
+r.onresult=(event)=>{let interim='';for(let i=event.resultIndex;i<event.results.length;i++){const t=event.results[i][0].transcript;if(event.results[i].isFinal){finalText+=t+' ';}else{interim+=t;}}output.innerHTML=escapeHtml(finalText)+'<span class="interim">'+escapeHtml(interim)+'</span>';output.scrollTop=output.scrollHeight;};
+r.onerror=(e)=>{statusEl.textContent='خطأ: '+e.error+(e.error==='not-allowed'?' — اسمح بإذن الميكروفون':'');};
+r.onend=()=>{if(listening){try{r.start();}catch(_){}}else{statusEl.textContent='تم الإيقاف';startBtn.disabled=false;stopBtn.disabled=true;}};
+return r;}
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+startBtn.onclick=()=>{finalText=finalText||'';recognition=buildRecognition();listening=true;try{recognition.start();}catch(_){}};
+stopBtn.onclick=()=>{listening=false;if(recognition)recognition.stop();};
+clearBtn.onclick=()=>{finalText='';output.innerHTML='<span class="interim">تم المسح…</span>';analysisBox.innerHTML='<span class="interim">اضغط تحليل ذكي بعد الكلام…</span>';};
+langSel.onchange=()=>{if(listening&&recognition){listening=false;recognition.stop();setTimeout(()=>{startBtn.click();},300);}};
+analyzeBtn.onclick=async()=>{if(!finalText.trim()){analysisBox.textContent='لا يوجد نص بعد. تكلّم أولاً.';return;}analysisBox.textContent='جاري التحليل…';try{const res=await fetch(WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:finalText})});analysisBox.textContent=await res.text();}catch(e){analysisBox.textContent='تعذّر الاتصال بالدماغ: '+e.message;}};
+let mediaRecorder=null;
+recordBtn.onclick=async()=>{
+try{
+soundBox.textContent=' جاري التسجيل (٥ ثواني)… دع الصوت حولك يعمل';
+const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+const chunks=[];
+mediaRecorder=new MediaRecorder(stream);
+mediaRecorder.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+mediaRecorder.onstop=async()=>{
+stream.getTracks().forEach(t=>t.stop());
+soundBox.textContent='جاري تحليل الصوت…';
+const blob=new Blob(chunks,{type:'audio/webm'});
+const reader=new FileReader();
+reader.onloadend=async()=>{
+const base64=reader.result.split(',')[1];
+try{const res=await fetch(AUDIO_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:base64,mimeType:'audio/webm'})});soundBox.textContent=await res.text();}
+catch(err){soundBox.textContent='تعذّر الاتصال بالدماغ: '+err.message;}
+};
+reader.readAsDataURL(blob);
+};
+mediaRecorder.start();
+recordBtn.disabled=true;
+setTimeout(()=>{if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();recordBtn.disabled=false;},5000);
+}catch(err){soundBox.textContent='خطأ في الميكروفون: '+err.message;recordBtn.disabled=false;}
+};
+</script>
+</body>
+</html>
