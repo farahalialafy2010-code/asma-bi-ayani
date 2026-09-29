@@ -14,7 +14,7 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body || "{}");
     const text = body.text || "";
 
-    const prompt = `أنت خبير في تحليل المشاعر ونبرة الكلام باللغة العربية. حلّل النص التالي وأعطِ:\n\n**١) المشاعر والنبرة:**\n- النبرة العامة\n- المشاعر الظاهرة\n\n**٢) تنبيه الأمان:**\n- هل يوجد خطر أو تهديد أو طلب مساعدة؟\n\nالنص: "${text}"`;
+    const prompt = `حلّل النص التالي مباشرةً دون أي مقدمة أو ترحيب أو تعريف بنفسك. ابدأ فوراً بالنتيجة بهذا الشكل:\n\n**١) المشاعر والنبرة:**\n- النبرة العامة\n- المشاعر الظاهرة\n\n**٢) تنبيه الأمان:**\n- هل يوجد خطر أو تهديد أو طلب مساعدة؟\n\nممنوع كتابة أي جملة قبل "١) المشاعر والنبرة".\n\nالنص: "${text}"`;
 
     const response = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
